@@ -1,0 +1,12 @@
+Lux         KEYWORD1
+
+startSensor     KEYWORD2
+forceLuxReading KEYWORD2
+calibrate       KEYWORD2
+update          KEYWORD2
+resetMinMax     KEYWORD2
+getMinLux       KEYWORD2
+getMaxLux       KEYWORD2
+getAvgLux       KEYWORD2
+resetAvgLux     KEYWORD2
+getName         KEYWORD2
