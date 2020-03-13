@@ -9,6 +9,10 @@
 // TODO add code so if the TCA is not available things are cool... also add firmware #define to control this
 #define TCAADDR 0x70
 
+#ifndef MAX_LUX_SENSORS
+#define MAX_LUX_SENSORS 2
+#endif
+
 class LuxManager {
     // initalises its own lux sensors and then handles the readings
   public:
@@ -40,11 +44,11 @@ class LuxManager {
     void resetBrightnessScalerAvg();
     double brightness_scaler = 0.0;
     double brightness_scaler_avg = 0.0;
+    bool getExtremeLux() {return extreme_lux;};
 
   private:
-    Adafruit_VEML7700 sensor = Adafruit_VEML7700();
-    uint8_t num_sensors = 0;
-
+    Adafruit_VEML7700 sensors[MAX_LUX_SENSORS] = {Adafruit_VEML7700(), Adafruit_VEML7700()};
+    uint8_t num_sensors = MAX_LUX_SENSORS;
     int tca_addr;
 
     NeoGroup *neo;
@@ -75,12 +79,12 @@ class LuxManager {
     double checkForLuxOverValue();
 
     double read();
+    bool extreme_lux;
 };
 
 //////////////////////////// lux and stuff /////////////////////////
 
 LuxManager::LuxManager (long minrt, long maxrt, int tca, String _name, NeoGroup *n) {
-  num_sensors = 1;
   tca_addr = tca;
   id = _name;
   neo = n;
@@ -111,35 +115,37 @@ void LuxManager::startSensor(byte g, byte r) {
   if (tca_addr > -1) {
     tcaselect(tca_addr);
   }
-  if (!sensor.begin()) {
-    Serial.print("ERROR ---- VEML "); Serial.print(id); Serial.println(" not found");
-    neo->colorWipe(255, 100, 0);
-    unsigned long then = millis();
-    while (millis() < then + 5000) {
-      Serial.print(".");
-      delay(100);
-    }
-  }
-  else {
-    Serial.print("VEML "); Serial.print(id); Serial.println(" found");
-    sensor.setGain(g);
-    sensor.setIntegrationTime(r);// 800ms was default
+  for (int i = 0; i < MAX_LUX_SENSORS; i++){
+      if (!sensors[i].begin()) {
+        Serial.print("ERROR ---- VEML "); Serial.print(id); Serial.println(" not found");
+        neo->colorWipe(255, 100, 0);
+        unsigned long then = millis();
+        while (millis() < then + 5000) {
+          Serial.print(".");
+          delay(100);
+        }
+      }
+      else {
+        Serial.print("VEML "); Serial.print(id); Serial.println(" found");
+        sensors.setGain(g);
+        sensors.setIntegrationTime(r);// 800ms was default
+      }
   }
 }
 
-double LuxManager::checkForLuxOverValue() {
+double LuxManager::checkForLuxOverValue(int i) {
   // sometimes the sensor will give an incorrect extremely high reading, this compensates for this...
-  if (lux > 100000) {
+  if (lux[i] > 100000) {
     dprintln(PRINT_LUX_DEBUG, "lux "); dprintln(PRINT_LUX_DEBUG, id); dprintln(PRINT_LUX_DEBUG, " reading error: ");
     dprintln(PRINT_LUX_DEBUG, (String)lux);
     // take the reading again
     // todo also need to remove the current reading from the logs 
     if (SMOOTH_LUX_READINGS && lux != 0) {
-      lux = (lux + sensor.readLux()) * 0.5;
+      lux = (lux + sensors[i].readLux()) * 0.5;
       lux_total += lux;
       lux_readings++;
     } else {
-      lux = sensor.readLux();
+      lux = sensors[i].readLux();
       lux_total += lux;
       lux_readings++;
     }
@@ -182,8 +188,8 @@ void LuxManager::setLuxValue(double temp) {
   last_reading = 0;
 }
 
-void LuxManager::readLux() {
-    readLux(&sensor);
+void LuxManager::readLux(int i) {
+    readLux(&sensors[i]);
 }
 
 void LuxManager::readLux(Adafruit_VEML7700 *s) {
@@ -237,37 +243,37 @@ double LuxManager::calculateBrightnessScaler() {
     if (lux >= EXTREME_LUX_THRESHOLD) {
         bs = 0.0;
         dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " Neopixel brightness scaler set to 0.0 due to extreme lux");
-        if (neo->getLuxShdn() == false) {
-            neo->setExtremeLuxShdn(1);
+        if (extreme_lux == false) {
+            extreme_lux = true;
         }
     } 
     else if (lux >= HIGH_LUX_THRESHOLD) {
         bs = BRIGHTNESS_SCALER_MAX;
         dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MAX");
-        if (neo->getLuxShdn() == true) {
-            neo->setExtremeLuxShdn(false);
+        if (extreme_lux == true) {
+            extreme_lux = false;
         }
     }
     else if (lux >= MID_LUX_THRESHOLD) {
         bs = 1.0;
         // bs = 1.0 + (BRIGHTNESS_SCALER_MAX - 1.0) * ((lux - MID_LUX_THRESHOLD) / (HIGH_LUX_THRESHOLD - MID_LUX_THRESHOLD));
         dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the MID_LUX_THRESHOLD, setting brightness scaler to 1.0");
-        if (neo->getLuxShdn() == true) {
-            neo->setExtremeLuxShdn(false);
+        if (extreme_lux == true) {
+            extreme_lux = false;
         }
     }
     else if (lux >= LOW_LUX_THRESHOLD)  {
         bs = (lux - LOW_LUX_THRESHOLD) / (MID_LUX_THRESHOLD - LOW_LUX_THRESHOLD) * (1.0 - BRIGHTNESS_SCALER_MIN);
         bs += BRIGHTNESS_SCALER_MIN;
         dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the LOW_LUX_THRESHOLD, setting brightness scaler to a value < 1.0");
-        if (neo->getLuxShdn() == true) {
-            neo->setExtremeLuxShdn(false);
+        if (extreme_lux == true) {
+            extreme_lux = false;
         }
     } else {
         bs = BRIGHTNESS_SCALER_MIN;
         dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MIN");
-        if (neo->getLuxShdn() == true) {
-            neo->setExtremeLuxShdn(false);
+        if (extreme_lux == true) {
+            extreme_lux = false;
         }
     }
     dprint(PRINT_BRIGHTNESS_SCALER_DEBUG, "lux:\t");
@@ -339,7 +345,7 @@ double LuxManager::forceLuxReading() {
 bool LuxManager::update() {
   if ((neo->getLedsOn() == false && neo->getOnOffLen() >= LUX_SHDN_LEN) || (neo->getShdnLen() > LUX_SHDN_LEN)) {
       // if currently in extreme lux shutdown then poll 20x faster
-    if (neo->getLuxShdn() && last_reading > min_reading_time * 0.05) {
+    if (extreme_lux && last_reading > min_reading_time * 0.05) {
         dprint(PRINT_LUX_DEBUG, "QUICK UPDATE due to extreme lux reading");
         readLux();
         if (neo->getShdnLen() > LUX_SHDN_LEN) {
