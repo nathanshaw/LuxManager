@@ -5,9 +5,13 @@
 #include <Wire.h>
 #include "../Configuration.h"
 #include "../NeopixelManager/NeopixelManager.h"
+#include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
 
 // TODO add code so if the TCA is not available things are cool... also add firmware #define to control this
 #define TCAADDR 0x70
+//
+#define V6030_ADDR1    0x48
+#define V6030_ADDR2    0x10
 
 #ifndef MAX_LUX_SENSORS
 #define MAX_LUX_SENSORS 2
@@ -30,12 +34,14 @@ class LuxManager {
   public:
     LuxManager(long minrt, long maxrt);
     void linkNeoGroup(NeoGroup * n);
-    void addLuxSensor(int tca, String _name);
+    void add6030Sensors();
+    void add7700Sensors();
+	void addSensorTcaIdx(String _name, int tca);
 
     double getLux() {
       return global_lux;
     };
-    void startSensors(byte gain, byte integration);
+    void startTCA7700Sensors(byte gain, byte integration);
 
     // to help multiple lux managers coordinate
     double forceLuxReading();
@@ -63,7 +69,10 @@ class LuxManager {
     double global_lux;
 
   private:
-    Adafruit_VEML7700 sensors[MAX_LUX_SENSORS];
+    Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
+    SparkFun_Ambient_Light  sensors_6030[MAX_LUX_SENSORS] = {
+        SparkFun_Ambient_Light(V6030_ADDR1), SparkFun_Ambient_Light(V6030_ADDR2)};
+
     uint8_t mode = TAKE_HIGHEST_LUX;
     uint8_t num_sensors = 0;
     bool sensor_active[MAX_LUX_SENSORS];
@@ -107,13 +116,48 @@ LuxManager::LuxManager(long minrt, long maxrt){
 
 //////////////////////////// lux and stuff /////////////////////////
 
-void LuxManager::addLuxSensor(int tca, String _name){
+
+void LuxManager::addSensorTcaIdx(String _name, int tca){
   names[num_sensors] = _name;
   tca_addr[num_sensors] = tca;
-  sensors[num_sensors] = Adafruit_VEML7700();
+  sensors_7700[num_sensors] = Adafruit_VEML7700();
   sensor_active[num_sensors] = false;// not active until startSensors() is called
   num_sensors++;
 }
+/*
+// for adding a sensor which is not based on tca
+void LuxManager::addSensorI2CAddr(String _name, int addr){
+  names[num_sensors] = _name;
+  num_sensors] = Adafruit_VEML7700();
+  sensor_active[num_sensors] = false;// not active until startSensors() is called
+  num_sensors++;
+}
+*/
+
+void LuxManager::add7700Sensors() {
+    Serial.println("TODO");
+}
+
+void LuxManager::add6030Sensors() {
+    names[num_sensors] = "Front";
+    // sensors_6030[num_sensors] = SparkFun_Ambient_Light(V6030_ADDR1);
+    sensor_active[num_sensors] = false;
+    num_sensors++;
+
+    names[num_sensors] = "Rear";
+    // sensors_6030[num_sensors] = SparkFun_Ambient_Light(V6030_ADDR2);
+    sensor_active[num_sensors] = false;
+    num_sensors++;
+}
+
+// void LuxManager::findSensor() {
+    // search for veml7700 sensor
+    // search for veml7700 sensor via TCA
+    // search for veml6030 sensor
+
+    // determine what side of the PCB the sensor is on (according to neogroups)
+    // link the lux sensors to the correct neogroups if that is needed/wanted
+// }
 
 void LuxManager::linkNeoGroup(NeoGroup * n){
   neos[num_neo_groups] = n;
@@ -137,27 +181,29 @@ void tcaselect(uint8_t i) {
   Wire.endTransmission();
 }
 
-void LuxManager::startSensors(byte gain, byte integration) {
+void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
     Wire.begin();
+    delay(500);
     for (int i = 0; i < num_sensors; i++){
-      Serial.print("attempting to start lux sensor ");
+      Serial.print("\nattempting to start lux sensor ");
       Serial.println(names[i]);
       if (tca_addr[i] > -1) {
         tcaselect(tca_addr[i]);
       }
-      if (!sensors[i].begin()) {
+      if (!sensors_7700[i].begin()) {
         Serial.print("ERROR ---- VEML "); Serial.print(names[i]); Serial.println(" not found");
-        neos[i]->colorWipe(255, 100, 0);
+        neos[i]->colorWipe(255, 0, 0);
         unsigned long then = millis();
         while (millis() < then + 5000) {
           Serial.print(".");
           delay(100);
         }
+        Serial.println();
       }
       else {
         Serial.print("VEML "); Serial.print(names[i]); Serial.println(" found");
-        sensors[i].setGain(gain); // talk about gain and integration time in the thesis
-        sensors[i].setIntegrationTime(integration);// 800ms was default
+        sensors_7700[i].setGain(gain); // talk about gain and integration time in the thesis
+        sensors_7700[i].setIntegrationTime(integration);// 800ms was default
       }
     }
 }
@@ -166,14 +212,15 @@ void LuxManager::readLux() {
     /* This function handles reading each individual lux sensor and then
      * determining what the global lux is. 
      */
+
     for (int i = 0; i < num_sensors; i++){
         // read each sensor
       if (tca_addr[i] > -1) {
         tcaselect(tca_addr[i]);
       }
-      double _t = sensors[i].readLux();
+      double _t = sensors_7700[i].readLux();
       if (_t > 1000000) {
-          _t = sensors[i].readLux();
+          _t = sensors_7700[i].readLux();
           if (_t  < 1000000) {
               lux[i] = _t;
           }
@@ -190,7 +237,7 @@ void LuxManager::readLux() {
         }
         global_lux = highest;
     } else if (mode == TAKE_AVERAGE_LUX) {
-        double average;
+        double average = 0.0;
         for (int i = 0; i < num_sensors; i++) {
             average = average + lux[i];
         }
@@ -216,6 +263,7 @@ void LuxManager::readLux() {
 }
 
 double LuxManager::calculateBrightnessScaler() {
+
     // todo need to make this function better... linear mapping does not really work, need to map li
     double bs;
     // conduct brightness scaling depending on if the reading is above or below the mid thresh
@@ -297,6 +345,7 @@ void LuxManager::resetMinMax() {
 void LuxManager::calibrate(long len, bool first_time = true) {
   // todo change this function so it takes the average of these readings
   // TODO this is broken now that the manager looks after multiple sensors....
+  // 
   printMinorDivide();
   Serial.println("Starting Lux Calibration");
   double lux_tot = 0.0;
