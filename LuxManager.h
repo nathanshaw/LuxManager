@@ -220,7 +220,7 @@ void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
         }
         if (!sensors_7700[i].begin()) {
             Serial.print("ERROR ---- VEML "); Serial.print(names[i]); Serial.println(" not found");
-            neos[i]->colorWipe(255, 0, 0);
+            neos[i]->colorWipe(255, 0, 0, 1.0);
             unsigned long then = millis();
             while (millis() < then + 5000) {
                 Serial.print(".");
