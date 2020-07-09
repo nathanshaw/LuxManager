@@ -66,7 +66,7 @@ class LuxManager {
         double brightness_scaler = 0.0;
         double brightness_scaler_avg = 0.0;
         double lux[MAX_LUX_SENSORS];
-        double global_lux;
+        double global_lux = 400;
 
     private:
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
@@ -199,7 +199,7 @@ double LuxManager::getAvgLux() {
 void LuxManager::resetAvgLux() {
     lux_total = 0;
     lux_readings = 0;
-    dprintln(PRINT_LUX_DEBUG, "reset lux_total and lux_readings");
+    dprintln(P_LUX_DEBUG, "reset lux_total and lux_readings");
 }
 
 void tcaselect(uint8_t i) {
@@ -298,9 +298,9 @@ void LuxManager::readLux() {
     for (int i = 0; i < num_neo_groups; i++){
         neos[i]->setBrightnessScaler(brightness_scaler);
     }
-    if (PRINT_BRIGHTNESS_SCALER_DEBUG == 0) {
-        dprint(PRINT_LUX_READINGS, "\tbs: "); 
-        dprintln(PRINT_LUX_READINGS, brightness_scaler);
+    if (P_BRIGHTNESS_SCALER_DEBUG == 0) {
+        dprint(P_LUX_READINGS, "\tbs: "); 
+        dprintln(P_LUX_READINGS, brightness_scaler);
     };
     updateMinMax();
     last_reading = 0;
@@ -312,17 +312,17 @@ double LuxManager::calculateBrightnessScaler() {
     double bs;
     // conduct brightness scaling depending on if the reading is above or below the mid thresh
     // is the unconstrained lux above the extreme_lux_thresh?
-    dprint(PRINT_BRIGHTNESS_SCALER_DEBUG, names[0]);
+    dprint(P_BRIGHTNESS_SCALER_DEBUG, names[0]);
     if (global_lux >= EXTREME_LUX_THRESHOLD) {
         bs = 0.0;
-        dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " Neopixel brightness scaler set to 0.0 due to extreme lux");
+        dprintln(P_BRIGHTNESS_SCALER_DEBUG, " Neopixel brightness scaler set to 0.0 due to extreme lux");
         if (extreme_lux == false) {
             extreme_lux = true;
         }
     } 
     else if (global_lux >= HIGH_LUX_THRESHOLD) {
         bs = BRIGHTNESS_SCALER_MAX;
-        dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MAX");
+        dprintln(P_BRIGHTNESS_SCALER_DEBUG, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MAX");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
@@ -330,7 +330,7 @@ double LuxManager::calculateBrightnessScaler() {
     else if (global_lux >= MID_LUX_THRESHOLD) {
         bs = 1.0;
         // bs = 1.0 + (BRIGHTNESS_SCALER_MAX - 1.0) * ((lux - MID_LUX_THRESHOLD) / (HIGH_LUX_THRESHOLD - MID_LUX_THRESHOLD));
-        dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the MID_LUX_THRESHOLD, setting brightness scaler to 1.0");
+        dprintln(P_BRIGHTNESS_SCALER_DEBUG, " is greater than the MID_LUX_THRESHOLD, setting brightness scaler to 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
@@ -338,21 +338,21 @@ double LuxManager::calculateBrightnessScaler() {
     else if (global_lux >= LOW_LUX_THRESHOLD)  {
         bs = (global_lux - LOW_LUX_THRESHOLD) / (MID_LUX_THRESHOLD - LOW_LUX_THRESHOLD) * (1.0 - BRIGHTNESS_SCALER_MIN);
         bs += BRIGHTNESS_SCALER_MIN;
-        dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is greater than the LOW_LUX_THRESHOLD, setting brightness scaler to a value < 1.0");
+        dprintln(P_BRIGHTNESS_SCALER_DEBUG, " is greater than the LOW_LUX_THRESHOLD, setting brightness scaler to a value < 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     } else {
         bs = BRIGHTNESS_SCALER_MIN;
-        dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MIN");
+        dprintln(P_BRIGHTNESS_SCALER_DEBUG, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MIN");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
-    dprint(PRINT_BRIGHTNESS_SCALER_DEBUG, "global_lux:\t");
-    dprint(PRINT_BRIGHTNESS_SCALER_DEBUG, global_lux);
-    dprint(PRINT_BRIGHTNESS_SCALER_DEBUG, "\tbrightness_scaler:\t");
-    dprintln(PRINT_BRIGHTNESS_SCALER_DEBUG, bs);
+    dprint(P_BRIGHTNESS_SCALER_DEBUG, "global_lux:\t");
+    dprint(P_BRIGHTNESS_SCALER_DEBUG, global_lux);
+    dprint(P_BRIGHTNESS_SCALER_DEBUG, "\tbrightness_scaler:\t");
+    dprintln(P_BRIGHTNESS_SCALER_DEBUG, bs);
     return bs;
 }
 
@@ -424,7 +424,7 @@ bool LuxManager::update() {
         if ((neos[i]->getLedsOn() == false && neos[i]->getOnOffLen() >= LUX_SHDN_LEN) || (neos[i]->getShdnLen() > LUX_SHDN_LEN)) {
             // if currently in extreme lux shutdown then poll 20x faster
             if (extreme_lux && last_reading > min_reading_time * 0.05) {
-                dprint(PRINT_LUX_DEBUG, "QUICK UPDATE due to extreme lux reading");
+                dprint(P_LUX_DEBUG, "QUICK UPDATE due to extreme lux reading");
                 readLux();
                 if (neos[i]->getShdnLen() > LUX_SHDN_LEN) {
                     neos[i]->powerOn();
