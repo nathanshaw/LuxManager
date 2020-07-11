@@ -67,6 +67,8 @@ class LuxManager {
         double brightness_scaler_avg = 0.0;
         double lux[MAX_LUX_SENSORS];
         double global_lux = 400;
+        ///////////////////////////////////
+        bool sensor_active[MAX_LUX_SENSORS];
 
     private:
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
@@ -77,7 +79,6 @@ class LuxManager {
         uint8_t num_sensors = 0;
         uint8_t num_6030_sensors = 0;
         uint8_t num_7700_sensors = 0;
-        bool sensor_active[MAX_LUX_SENSORS];
 
         int tca_addr[MAX_LUX_SENSORS];
 
@@ -120,6 +121,7 @@ LuxManager::LuxManager(long minrt, long maxrt){
 
 
 void LuxManager::addSensorTcaIdx(String _name, int tca){
+    // will return true if sensor is found and false if it is not
     names[num_sensors] = _name;
     tca_addr[num_sensors] = tca;
     sensors_7700[num_sensors] = Adafruit_VEML7700();
@@ -138,7 +140,10 @@ num_sensors++;
 */
 
 void LuxManager::add7700Sensors() {
-    Serial.println("TODO");
+    for (int i = 0; i < 20; i++) {
+        Serial.println("WARNING: add7700Sensor() - TODO");
+        delay(150);
+    }
 }
 
 void LuxManager::add6030Sensors(float gain, int _int) {
@@ -230,6 +235,7 @@ void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
         }
         else {
             Serial.print("VEML "); Serial.print(names[i]); Serial.println(" found");
+            sensor_active[i] = true;
             sensors_7700[i].setGain(gain); // talk about gain and integration time in the thesis
             sensors_7700[i].setIntegrationTime(integration);// 800ms was default
         }
