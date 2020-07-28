@@ -29,14 +29,58 @@
 #define TAKE_AVERAGE_LUX 1
 #endif
 
+#ifndef PRINT_BRIGHTNESS_SCALER_DEBUG
+#define PRINT_BRIGHTNESS_SCALER_DEBUG false
+#endif
+
+#ifndef PRINT_LUX_READINGS
+#define PRINT_LUX_READINGS false
+#endif
+
+#ifndef EXTREME_LUX_THRESHOLD
+#define EXTREME_LUX_THRESHOLD 4000.0
+#endif
+
+#ifndef HIGH_LUX_THRESHOLD
+#define HIGH_LUX_THRESHOLD 1200.0
+#endif
+
+#ifndef MID_LUX_THRESHOLD
+#define MID_LUX_THRESHOLD 250.0
+#endif
+
+#ifndef LOW_LUX_THRESHOLD
+#define LOW_LUX_THRESHOLD 10.0
+#endif
+
+#ifndef BRIGHTNESS_SCALER_MIN
+#define BRIGHTNESS_SCALER_MIN 0.125
+#endif
+
+#ifndef BRIGHTNESS_SCALER_MAX
+#define BRIGHTNESS_SCALER_MAX 2.0
+#endif
+
+#ifndef LUX_SHDN_LEN
+#define LUX_SHDN_LEN 40
+#endif
+
 class LuxManager {
     // initalises its own lux sensors and then handles the readings
+<<<<<<< HEAD
     public:
         LuxManager(long minrt, long maxrt);
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
         void add7700Sensors();
         void addSensorTcaIdx(String _name, int tca);
+=======
+  public:
+    LuxManager(long minrt, long maxrt);
+    void linkNeoGroup(NeoGroup * n);
+    void addLuxSensor(int tca, String _name);
+    void addLuxSensor(String _name);
+>>>>>>> added in a flag for when a project doees not have a TCA
 
         double getLux() {
             return global_lux;
@@ -108,8 +152,14 @@ class LuxManager {
 
         double calculateBrightnessScaler();
 
+<<<<<<< HEAD
         double read();
         bool extreme_lux;
+=======
+    double read();
+    bool extreme_lux;
+    bool tca_present = false;
+>>>>>>> added in a flag for when a project doees not have a TCA
 };
 
 LuxManager::LuxManager(long minrt, long maxrt){
@@ -119,6 +169,7 @@ LuxManager::LuxManager(long minrt, long maxrt){
 
 //////////////////////////// lux and stuff /////////////////////////
 
+<<<<<<< HEAD
 
 void LuxManager::addSensorTcaIdx(String _name, int tca){
     // will return true if sensor is found and false if it is not
@@ -181,6 +232,23 @@ void LuxManager::add6030Sensors(float gain, int _int) {
     }
     Serial.print(num_sensors);
     Serial.println(" sensors were added correctly");
+=======
+void LuxManager::addLuxSensor(int tca, String _name){
+  names[num_sensors] = _name;
+  tca_addr[num_sensors] = tca;
+  tca_present = true;
+  sensors[num_sensors] = Adafruit_VEML7700();
+  sensor_active[num_sensors] = false;// not active until startSensors() is called
+  num_sensors++;
+}
+
+void LuxManager::addLuxSensor(String _name){
+  names[num_sensors] = _name;
+  tca_present = false;
+  sensors[num_sensors] = Adafruit_VEML7700();
+  sensor_active[num_sensors] = false;// not active until startSensors() is called
+  num_sensors++;
+>>>>>>> added in a flag for when a project doees not have a TCA
 }
 
 // void LuxManager::findSensor() {
@@ -218,6 +286,7 @@ void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
     Wire.begin();
     delay(500);
     for (int i = 0; i < num_sensors; i++){
+<<<<<<< HEAD
         Serial.print("\nattempting to start lux sensor ");
         Serial.println(names[i]);
         if (tca_addr[i] > -1) {
@@ -238,6 +307,22 @@ void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
             sensor_active[i] = true;
             sensors_7700[i].setGain(gain); // talk about gain and integration time in the thesis
             sensors_7700[i].setIntegrationTime(integration);// 800ms was default
+=======
+      Serial.print("attempting to start lux sensor ");
+      Serial.println(names[i]);
+      if (tca_present == true) {
+          if (tca_addr[i] > -1) {
+            tcaselect(tca_addr[i]);
+          }
+      }
+      if (!sensors[i].begin()) {
+        Serial.print("ERROR ---- VEML "); Serial.print(names[i]); Serial.println(" not found");
+        neos[i]->colorWipe(255, 100, 0);
+        unsigned long then = millis();
+        while (millis() < then + 5000) {
+          Serial.print(".");
+          delay(100);
+>>>>>>> added in a flag for when a project doees not have a TCA
         }
     }
 }
