@@ -29,10 +29,19 @@
 #define TAKE_AVERAGE_LUX 1
 #endif
 
+#ifndef LUX_ADJUSTS_BS
+#define LUX_ADJUSTS_BS 0
+#endif
+
+#ifndef LUX_ADJUSTS_MIN_MAX
+#define LUX_ADJUSTS_MIN_MAX 1
+#endif
+
 class LuxManager {
     // initalises its own lux sensors and then handles the readings
     public:
-        LuxManager(long minrt, long maxrt);
+        LuxManager(long minrt, long maxrt, uint8_t mapping);
+        void changeMapping(uint8_t mapping);
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
         void add7700Sensors();
@@ -49,6 +58,8 @@ class LuxManager {
 
         bool update();
         void resetMinMax();
+
+        // these are made public to help the datalogger track them easier
         double min_reading = 9999.9;
         double max_reading = 0.0;
 
@@ -110,12 +121,42 @@ class LuxManager {
 
         double read();
         bool extreme_lux;
+        uint8_t lux_mapping_schema = LUX_ADJUSTS_BS;
 };
 
-LuxManager::LuxManager(long minrt, long maxrt){
+LuxManager::LuxManager(long minrt, long maxrt, uint8_t mapping){
     min_reading_time = minrt;
     max_reading_time = maxrt;
+    lux_mapping_schema = mapping;
+    Serial.print("LuxManager created with a min reading time of: ");
+    Serial.println(min_reading_time);
+    Serial.print("LuxManager created with a max reading time of: ");
+    Serial.println(max_reading_time);
+    Serial.print("LuxManager created with a mapping schema of  : ");
+    if (lux_mapping_schema == LUX_ADJUSTS_BS) {
+        Serial.println("LUX_ADJUSTS_BS");
+    } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
+        Serial.println("LUX_ADJUSTS_MIN_MAX");
+    } else {
+        Serial.println(" WARNING THIS MAPPING DOES NOT EXIST");
+
+    }
 }
+
+void LuxManager::changeMapping(uint8_t mapping) {
+    if (mapping != lux_mapping_schema){
+        lux_mapping_schema = mapping;
+    if (lux_mapping_schema == LUX_ADJUSTS_BS) {
+        Serial.println("LUX_ADJUSTS_BS");
+    } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
+        Serial.println("LUX_ADJUSTS_MIN_MAX");
+    } else {
+        Serial.println(" WARNING THIS MAPPING DOES NOT EXIST");
+
+    }
+    }
+};
+
 
 //////////////////////////// lux and stuff /////////////////////////
 
@@ -314,7 +355,11 @@ void LuxManager::readLux() {
     brightness_scaler_total += brightness_scaler;
     // update all linked neogroups with the new brighness scaler
     for (int i = 0; i < num_neo_groups; i++){
-        neos[i]->setBrightnessScaler(brightness_scaler);
+        if (lux_mapping_schema == LUX_ADJUSTS_BS) {
+            neos[i]->setBrightnessScaler(brightness_scaler);
+        } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
+            neos[i]->setMinMaxBrightnessFromBS(brightness_scaler);
+        }
     }
     if (P_BRIGHTNESS_SCALER == 0) {
         dprint(P_LUX_READINGS, "\tbs: "); 
