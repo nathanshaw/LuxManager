@@ -35,10 +35,44 @@
 
 #ifndef LUX_ADJUSTS_MIN_MAX
 #define LUX_ADJUSTS_MIN_MAX 1
+
+#ifndef PRINT_BRIGHTNESS_SCALER_DEBUG
+#define PRINT_BRIGHTNESS_SCALER_DEBUG false
+#endif
+
+#ifndef PRINT_LUX_READINGS
+#define PRINT_LUX_READINGS false
+#endif
+
+#ifndef EXTREME_LUX_THRESHOLD
+#define EXTREME_LUX_THRESHOLD 4000.0
+#endif
+
+#ifndef HIGH_LUX_THRESHOLD
+#define HIGH_LUX_THRESHOLD 1200.0
+#endif
+
+#ifndef MID_LUX_THRESHOLD
+#define MID_LUX_THRESHOLD 250.0
+#endif
+
+#ifndef LOW_LUX_THRESHOLD
+#define LOW_LUX_THRESHOLD 10.0
+#endif
+
+#ifndef BRIGHTNESS_SCALER_MIN
+#define BRIGHTNESS_SCALER_MIN 0.125
+#endif
+
+#ifndef BRIGHTNESS_SCALER_MAX
+#define BRIGHTNESS_SCALER_MAX 2.0
+#endif
+
+#ifndef LUX_SHDN_LEN
+#define LUX_SHDN_LEN 40
 #endif
 
 class LuxManager {
-    // initalises its own lux sensors and then handles the readings
     public:
         LuxManager(long minrt, long maxrt, uint8_t mapping);
         void changeMapping(uint8_t mapping);
@@ -122,6 +156,7 @@ class LuxManager {
         double read();
         bool extreme_lux;
         uint8_t lux_mapping_schema = LUX_ADJUSTS_BS;
+        bool tca_present = false;
 };
 
 LuxManager::LuxManager(long minrt, long maxrt, uint8_t mapping){
@@ -159,7 +194,6 @@ void LuxManager::changeMapping(uint8_t mapping) {
 
 
 //////////////////////////// lux and stuff /////////////////////////
-
 
 void LuxManager::addSensorTcaIdx(String _name, int tca){
     // will return true if sensor is found and false if it is not
@@ -447,40 +481,6 @@ void LuxManager::updateMinMax() {
 void LuxManager::resetMinMax() {
     min_reading = 10000;
     max_reading = 0;
-}
-// todo move me to the correct place
-void LuxManager::calibrate(long len, bool first_time = true) {
-    // todo change this function so it takes the average of these readings
-    // TODO this is broken now that the manager looks after multiple sensors....
-    // 
-    Serial.println("WARNING THE LUX CALIBRATION IS CURRENTLY OFFLINE");
-    /*
-    printMinorDivide();
-    Serial.println("Starting Lux Calibration");
-    Serial.println("Will print out the highest lux recorded from either sensor 10x and average the reading for the 1st global_lux value");
-    double lux_tot = 0.0;
-    for (int s = 0; s < num_sensors; s++){
-        for (int i = 0; i < 10; i++) {
-            delay(len / 10);
-            forceLuxReading(); // todo change this to not be hard coded
-            if (first_time) {
-                Serial.print(global_lux);
-                Serial.print("  ");
-            }
-            lux_tot += global_lux;
-            // when we have the first 10 readings
-        }
-        Serial.print("\nAverage lux readings : ");
-        global_lux = lux_tot / 10.0;
-        Serial.print(global_lux);
-        Serial.println();
-        if (first_time) {
-            lux_total = 0;
-            lux_readings = 0;
-        }
-    }
-    printMinorDivide();
-    */
 }
 
 double LuxManager::forceLuxReading() {
