@@ -61,14 +61,6 @@
 #define LOW_LUX_THRESHOLD 10.0
 #endif
 
-#ifndef BRIGHTNESS_SCALER_MIN
-#define BRIGHTNESS_SCALER_MIN 0.125
-#endif
-
-#ifndef BRIGHTNESS_SCALER_MAX
-#define BRIGHTNESS_SCALER_MAX 2.0
-#endif
-
 #ifndef LUX_SHDN_LEN
 #define LUX_SHDN_LEN 40
 #endif
@@ -76,6 +68,7 @@
 class LuxManager {
     public:
         LuxManager(long minrt, long maxrt, uint8_t mapping);
+        void setBrightnessScalerMinMax(double min, double max);
         void changeMapping(uint8_t mapping);
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
@@ -151,6 +144,8 @@ class LuxManager {
         // for brightness
         double brightness_scaler_total;
         uint32_t num_brightness_scaler_vals;
+        double bs_min = 0.125;
+        double bs_max = 3.0;
 
         double calculateBrightnessScaler();
 
@@ -177,6 +172,15 @@ LuxManager::LuxManager(long minrt, long maxrt, uint8_t mapping){
         Serial.println(" WARNING THIS MAPPING DOES NOT EXIST");
 
     }
+}
+
+void LuxManager::setBrightnessScalerMinMax(double min, double max) {
+    bs_min = min;
+    bs_max = max;
+    Serial.print("LuxManager BS min/max updatedd to: ");
+    Serial.print(bs_min);
+    Serial.print(" / ");
+    Serial.println(bs_max);
 }
 
 void LuxManager::changeMapping(uint8_t mapping) {
@@ -419,30 +423,30 @@ double LuxManager::calculateBrightnessScaler() {
         }
     } 
     else if (global_lux >= HIGH_LUX_THRESHOLD) {
-        bs = BRIGHTNESS_SCALER_MAX;
-        dprintln(P_BRIGHTNESS_SCALER, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MAX");
+        bs = bs_max;
+        dprintln(P_BRIGHTNESS_SCALER, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to bs_max");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
     else if (global_lux >= MID_LUX_THRESHOLD) {
         bs = 1.0;
-        // bs = 1.0 + (BRIGHTNESS_SCALER_MAX - 1.0) * ((lux - MID_LUX_THRESHOLD) / (HIGH_LUX_THRESHOLD - MID_LUX_THRESHOLD));
+        // bs = 1.0 + (bbs_max- 1.0) * ((lux - MID_LUX_THRESHOLD) / (HIGH_LUX_THRESHOLD - MID_LUX_THRESHOLD));
         dprintln(P_BRIGHTNESS_SCALER, " is greater than the MID_LUX_THRESHOLD, setting brightness scaler to 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
     else if (global_lux >= LOW_LUX_THRESHOLD)  {
-        bs = (global_lux - LOW_LUX_THRESHOLD) / (MID_LUX_THRESHOLD - LOW_LUX_THRESHOLD) * (1.0 - BRIGHTNESS_SCALER_MIN);
-        bs += BRIGHTNESS_SCALER_MIN;
+        bs = (global_lux - LOW_LUX_THRESHOLD) / (MID_LUX_THRESHOLD - LOW_LUX_THRESHOLD) * (1.0 - bs_min);
+        bs += bs_min;
         dprintln(P_BRIGHTNESS_SCALER, " is greater than the LOW_LUX_THRESHOLD, setting brightness scaler to a value < 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     } else {
-        bs = BRIGHTNESS_SCALER_MIN;
-        dprintln(P_BRIGHTNESS_SCALER, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MIN");
+        bs = bs_min;
+        dprintln(P_BRIGHTNESS_SCALER, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to bs_min");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
