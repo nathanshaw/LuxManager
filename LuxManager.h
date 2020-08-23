@@ -3,8 +3,6 @@
 
 #include "Adafruit_VEML7700.h"
 #include <Wire.h>
-#include "../Configuration.h"
-#include "../NeopixelManager/NeopixelManager.h"
 #include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
 
 // TODO add code so if the TCA is not available things are cool... also add firmware #define to control this
