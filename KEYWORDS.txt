@@ -1,12 +1,27 @@
-Lux         KEYWORD1
+LuxManager                KEYWORD1
 
-startSensor     KEYWORD2
-forceLuxReading KEYWORD2
-calibrate       KEYWORD2
-update          KEYWORD2
-resetMinMax     KEYWORD2
-getMinLux       KEYWORD2
-getMaxLux       KEYWORD2
-getAvgLux       KEYWORD2
-resetAvgLux     KEYWORD2
-getName         KEYWORD2
+forceLuxReading           KEYWORD2
+calibrate                 KEYWORD2
+update                    KEYWORD2
+resetMinMax               KEYWORD2
+getMinLux                 KEYWORD2
+getMaxLux                 KEYWORD2
+getAvgLux                 KEYWORD2
+resetAvgLux               KEYWORD2
+getName                   KEYWORD2
+
+getBrightnessScaler       KEYWORD2
+getBrightnessScalerAvg    KEYWORD2
+resetBrightnessScalerAvg  KEYWORD2
+getExtremeLux             KEYWORD2
+
+setBrightnessScalerMinMax KEYWORD2
+changeMapping             KEYWORD2
+linkNeoGroup              KEYWORD2
+add6030Sensors            KEYWORD2
+add7700Sensors            KEYWORD2
+addSensorTcaIdx           KEYWORD2
+setLuxThresholds          KEYWORD2
+getLux                    KEYWORD2
+startTCA7700Sensors       KEYWORD2
+

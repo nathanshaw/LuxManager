@@ -1,13 +1,10 @@
 #ifndef __LUX_H__
 #define __LUX_H__
 
-#include "Adafruit_VEML7700.h"
 #include <Wire.h>
-#include "../Configuration.h"
-#include "../NeopixelManager/NeopixelManager.h"
 #include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
+#include "Adafruit_VEML7700.h"
 
-// TODO add code so if the TCA is not available things are cool... also add firmware #define to control this
 #define TCAADDR 0x70
 //
 #define V6030_ADDR1    0x48
@@ -15,10 +12,6 @@
 
 #ifndef MAX_LUX_SENSORS
 #define MAX_LUX_SENSORS 2
-#endif
-
-#ifndef MAX_NEO_GROUP
-#define MAX_NEO_GROUP 4
 #endif
 
 #ifndef TAKE_HIGHEST_LUX
@@ -35,51 +28,20 @@
 
 #ifndef LUX_ADJUSTS_MIN_MAX
 #define LUX_ADJUSTS_MIN_MAX 1
-
-#ifndef PRINT_BRIGHTNESS_SCALER_DEBUG
-#define PRINT_BRIGHTNESS_SCALER_DEBUG false
-#endif
-
-#ifndef PRINT_LUX_READINGS
-#define PRINT_LUX_READINGS false
-#endif
-
-#ifndef EXTREME_LUX_THRESHOLD
-#define EXTREME_LUX_THRESHOLD 4000.0
-#endif
-
-#ifndef HIGH_LUX_THRESHOLD
-#define HIGH_LUX_THRESHOLD 1200.0
-#endif
-
-#ifndef MID_LUX_THRESHOLD
-#define MID_LUX_THRESHOLD 250.0
-#endif
-
-#ifndef LOW_LUX_THRESHOLD
-#define LOW_LUX_THRESHOLD 10.0
-#endif
-
-#ifndef BRIGHTNESS_SCALER_MIN
-#define BRIGHTNESS_SCALER_MIN 0.125
-#endif
-
-#ifndef BRIGHTNESS_SCALER_MAX
-#define BRIGHTNESS_SCALER_MAX 2.0
-#endif
-
-#ifndef LUX_SHDN_LEN
-#define LUX_SHDN_LEN 40
 #endif
 
 class LuxManager {
     public:
         LuxManager(long minrt, long maxrt, uint8_t mapping);
+        void setBrightnessScalerMinMax(double min, double max);
         void changeMapping(uint8_t mapping);
+
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
         void add7700Sensors();
         void addSensorTcaIdx(String _name, int tca);
+
+        void setLuxThresholds(float _low, float _mid, float _high, float _extreme);
 
         double getLux() {
             return global_lux;
@@ -93,10 +55,6 @@ class LuxManager {
         bool update();
         void resetMinMax();
 
-        // these are made public to help the datalogger track them easier
-        double min_reading = 9999.9;
-        double max_reading = 0.0;
-
         double getAvgLux();
         void   resetAvgLux();
 
@@ -106,16 +64,17 @@ class LuxManager {
         double getBrightnessScaler();
         double getBrightnessScalerAvg();
         void resetBrightnessScalerAvg();
+
         bool getExtremeLux() {return extreme_lux;};
 
-        double brightness_scaler = 0.0;
-        double brightness_scaler_avg = 0.0;
-        double lux[MAX_LUX_SENSORS];
-        double global_lux = 400;
+    private:
         ///////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
+        double lux[MAX_LUX_SENSORS];
+        double global_lux = 400;
+        double brightness_scaler = 0.0;
+        double brightness_scaler_avg = 0.0;
 
-    private:
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
         SparkFun_Ambient_Light  sensors_6030[MAX_LUX_SENSORS] = {
             SparkFun_Ambient_Light(V6030_ADDR1), SparkFun_Ambient_Light(V6030_ADDR2)};
@@ -125,13 +84,24 @@ class LuxManager {
         uint8_t num_6030_sensors = 0;
         uint8_t num_7700_sensors = 0;
 
+        //////////////// Lux Thresholds for Mapping ////////////////
+        float low_thresh;
+        float mid_thresh;
+        float high_thresh;
+        float extreme_thresh;
+
         int tca_addr[MAX_LUX_SENSORS];
 
-        NeoGroup *neos[MAX_NEO_GROUP];
+        // how long to shutdown depends on the integration time, this is set to 180% of the integration time
+        int shdn_len = 45;
+
         uint8_t num_neo_groups = 0;
         String names[MAX_LUX_SENSORS];
 
         void updateMinMax();
+        // these are made public to help the datalogger track them easier
+        double min_reading = 9999.9;
+        double max_reading = 0.0;
 
         double past_readings[MAX_LUX_SENSORS][10];
 
@@ -150,6 +120,8 @@ class LuxManager {
         // for brightness
         double brightness_scaler_total;
         uint32_t num_brightness_scaler_vals;
+        double bs_min = 0.125;
+        double bs_max = 3.0;
 
         double calculateBrightnessScaler();
 
@@ -176,6 +148,22 @@ LuxManager::LuxManager(long minrt, long maxrt, uint8_t mapping){
         Serial.println(" WARNING THIS MAPPING DOES NOT EXIST");
 
     }
+}
+
+void LuxManager::setLuxThresholds(float _low, float _mid, float _high, float _extreme) {
+    low_thresh = _low;
+    mid_thresh = _mid;
+    high_thresh = _high;
+    extreme_thresh = _extreme;
+}
+
+void LuxManager::setBrightnessScalerMinMax(double min, double max) {
+    bs_min = min;
+    bs_max = max;
+    Serial.print("LuxManager BS min/max updatedd to: ");
+    Serial.print(bs_min);
+    Serial.print(" / ");
+    Serial.println(bs_max);
 }
 
 void LuxManager::changeMapping(uint8_t mapping) {
@@ -404,52 +392,54 @@ void LuxManager::readLux() {
 }
 
 double LuxManager::calculateBrightnessScaler() {
-
     // todo need to make this function better... linear mapping does not really work, need to map li
     double bs;
     // conduct brightness scaling depending on if the reading is above or below the mid thresh
     // is the unconstrained lux above the extreme_lux_thresh?
     dprint(P_BRIGHTNESS_SCALER, names[0]);
-    if (global_lux >= EXTREME_LUX_THRESHOLD) {
+
+    if (global_lux >= extreme_thresh) {
         bs = 0.0;
         dprintln(P_BRIGHTNESS_SCALER, " Neopixel brightness scaler set to 0.0 due to extreme lux");
         if (extreme_lux == false) {
             extreme_lux = true;
         }
     } 
-    else if (global_lux >= HIGH_LUX_THRESHOLD) {
-        bs = BRIGHTNESS_SCALER_MAX;
-        dprintln(P_BRIGHTNESS_SCALER, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MAX");
+    else if (global_lux >= high_thresh) {
+        bs = bs_max;
+        dprintln(P_BRIGHTNESS_SCALER, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to bs_max");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
-    else if (global_lux >= MID_LUX_THRESHOLD) {
+    else if (global_lux >= mid_thresh) {
         bs = 1.0;
-        // bs = 1.0 + (BRIGHTNESS_SCALER_MAX - 1.0) * ((lux - MID_LUX_THRESHOLD) / (HIGH_LUX_THRESHOLD - MID_LUX_THRESHOLD));
-        dprintln(P_BRIGHTNESS_SCALER, " is greater than the MID_LUX_THRESHOLD, setting brightness scaler to 1.0");
+        // bs = 1.0 + (bbs_max- 1.0) * ((lux - mid_thresh) / (high_thresh - mid_thresh));
+        dprintln(P_BRIGHTNESS_SCALER, " is greater than the mid_thresh, setting brightness scaler to 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
-    else if (global_lux >= LOW_LUX_THRESHOLD)  {
-        bs = (global_lux - LOW_LUX_THRESHOLD) / (MID_LUX_THRESHOLD - LOW_LUX_THRESHOLD) * (1.0 - BRIGHTNESS_SCALER_MIN);
-        bs += BRIGHTNESS_SCALER_MIN;
-        dprintln(P_BRIGHTNESS_SCALER, " is greater than the LOW_LUX_THRESHOLD, setting brightness scaler to a value < 1.0");
+    else if (global_lux >= )  {
+        bs = (global_lux - low_thresh) / (mid_thresh - low_thresh) * (1.0 - bs_min);
+        bs += bs_min;
+        dprintln(P_BRIGHTNESS_SCALER, " is greater than the low_thresh, setting brightness scaler to a value < 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     } else {
-        bs = BRIGHTNESS_SCALER_MIN;
-        dprintln(P_BRIGHTNESS_SCALER, " is lower than the LOW_LUX_THRESHOLD, setting brightness scaler to BRIGHTNESS_SCALER_MIN");
+        bs = bs_min;
+        dprintln(P_BRIGHTNESS_SCALER, " is lower than the low_thresh, setting brightness scaler to bs_min");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
+
     dprint(P_BRIGHTNESS_SCALER, "global_lux of ");
     dprint(P_BRIGHTNESS_SCALER, global_lux);
     dprint(P_BRIGHTNESS_SCALER, "has resulted in a brightness_scaler of ");
     dprintln(P_BRIGHTNESS_SCALER, bs);
+
     return bs;
 }
 
@@ -496,7 +486,7 @@ bool LuxManager::update() {
             dprint(P_LUX, neos[i]->getOffLen());
             dprintln(P_LUX, "ms");
             // and have been off for more than the shdn_len
-            if (neos[i]->getOffLen() >= LUX_SHDN_LEN) {
+            if (neos[i]->getOffLen() >= shdn_len) {
                 // if currently in extreme lux shutdown then poll 20x faster
                 dprint(P_LUX, "linked neos->getLedsOn() is false and getOffLen() > LUX_SHDN_LEN\nLast reading / min_reading_time: ");
                 dprint(P_LUX, last_reading);
@@ -505,7 +495,7 @@ bool LuxManager::update() {
                 if (extreme_lux && last_reading > min_reading_time * 0.05) {
                     dprint(P_LUX, "QUICK UPDATE due to extreme lux reading");
                     readLux();
-                    if (neos[i]->getShdnLen() > LUX_SHDN_LEN) {
+                    if (neos[i]->getShdnLen() > shdn_len) {
                         neos[i]->powerOn();
                         dprint(P_LUX, "Sending Power On Message");
                     }
@@ -514,7 +504,7 @@ bool LuxManager::update() {
                 else if (last_reading > min_reading_time) {
                     dprint(P_LUX, "Normal Lux Reading");
                     readLux();
-                    if (neos[i]->getShdnLen() > LUX_SHDN_LEN) {
+                    if (neos[i]->getShdnLen() > shdn_len) {
                         neos[i]->powerOn();
                         dprint(P_LUX, "Sending Power On Message");
                     }
@@ -529,7 +519,7 @@ bool LuxManager::update() {
             dprintln(P_LUX, " and neo LEDs are on");
             if (!neos[i]->isInShutdown()) {
                 dprint(P_LUX, "neos not in shutdown, putting them in shutdown now for a forced lux reading");
-                neos[i]->shutdown(LUX_SHDN_LEN*2);
+                neos[i]->shutdown(shdn_len);
             }
             dprintln(P_LUX);
         }
