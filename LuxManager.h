@@ -39,7 +39,7 @@ class LuxManager {
 
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
-        void add7700Sensors();
+        void add7700Sensor();
         void addSensorTcaIdx(String _name, int tca);
 
         void setLuxThresholds(float _low, float _mid, float _high, float _extreme);
@@ -48,6 +48,7 @@ class LuxManager {
             return global_lux;
         };
         void startTCA7700Sensors(byte gain, byte integration);
+        void start7700Sensor(byte gain, byte integration);
 
         // to help multiple lux managers coordinate
         double forceLuxReading();
@@ -72,7 +73,7 @@ class LuxManager {
 
     private:
         ////////////// Linked Neopixels ///////////////
-        NeoGroup*  neos[MAX_LUX_SENSORS];
+        NeoGroup*  neos[6];
         ///////////////////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
@@ -206,12 +207,22 @@ sensor_active[num_sensors] = false;// not active until startSensors() is called
 num_sensors++;
 }
 */
+void LuxManager::addSensorTcaIdx(String _name, int tca){
+    // will return true if sensor is found and false if it is not
+    names[num_sensors] = _name;
+    tca_addr[num_sensors] = tca;
+    sensors_7700[num_sensors] = Adafruit_VEML7700();
+    sensor_active[num_sensors] = false;// not active until startSensors() is called
+    num_sensors++;
+    num_7700_sensors++;
+}
 
-void LuxManager::add7700Sensors() {
-    for (int i = 0; i < 20; i++) {
-        Serial.println("WARNING: add7700Sensor() - TODO");
-        delay(150);
-    }
+void LuxManager::add7700Sensor(String _name) {
+    names[num_sensors] = _name;
+    sensors_7700[num_sensors] = Adafruit_VEML7700();
+    sensor_active[num_sensors] = false;// not active until startSensors() is called
+    num_sensors++;
+    num_7700_sensors++;
 }
 
 void LuxManager::add6030Sensors(float gain, int _int) {
@@ -280,6 +291,32 @@ void tcaselect(uint8_t i) {
     Wire.beginTransmission(TCAADDR);
     Wire.write(1 << i);
     Wire.endTransmission();
+}
+
+void LuxManager::start7700Sensor(byte gain, byte integration) {
+    Wire.begin();
+    delay(500);
+    // TODO - dont assume the 7700 sensor will be the only sensor
+    Serial.print("\nattempting to start lux sensor ");
+    Serial.println(names[0]);
+    if (!sensors_7700[0].begin()) {
+        Serial.print("ERROR ---- VEML "); Serial.print(names[0]); Serial.println(" not found");
+        for (int i = 0; i < num_neo_groups; i++) {
+            neos[i]->colorWipe(255, 0, 0, 1.0);
+        }
+        unsigned long then = millis();
+        while (millis() < then + 5000) {
+            Serial.print(".");
+            delay(100);
+        }
+        Serial.println();
+    }
+    else {
+        Serial.print("VEML "); Serial.print(names[0]); Serial.println(" found");
+        sensor_active[0] = true;
+        sensors_7700[0].setGain(gain); // talk about gain and integration time in the thesis
+        sensors_7700[0].setIntegrationTime(integration);// 800ms was default
+    }
 }
 
 void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
