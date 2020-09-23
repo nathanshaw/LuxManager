@@ -39,7 +39,7 @@ class LuxManager {
 
         void linkNeoGroup(NeoGroup * n);
         void add6030Sensors(float gain, int _int);
-        void add7700Sensor();
+        void add7700Sensor(String _name);
         void addSensorTcaIdx(String _name, int tca);
 
         void setLuxThresholds(float _low, float _mid, float _high, float _extreme);
@@ -71,12 +71,25 @@ class LuxManager {
 
         bool getSensorActive(int i){return sensor_active[i];};
 
+        void print();
+
+        void setPrintBrightnessScaler(bool s) {P_BRIGHTNESS_SCALER = s;};
+        void setPrintLuxReadings(bool s) {P_LUX_READINGS = s;};
+        void setPrintGeneralDebug(bool s) {P_LUX = s;};
+
     private:
         ////////////// Linked Neopixels ///////////////
         NeoGroup*  neos[6];
+        ////////////// Printing ///////////////
+        bool P_BRIGHTNESS_SCALER = false;
+        bool P_LUX_READINGS = false;
+        bool P_LUX = false;
+
         ///////////////////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
+        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble(&lux[0], 0.5), ValueTrackerDouble(&lux[1], 0.5)};
+
         double global_lux = 400;
         double brightness_scaler = 0.0;
         double brightness_scaler_avg = 0.0;
@@ -188,16 +201,6 @@ void LuxManager::changeMapping(uint8_t mapping) {
 
 
 //////////////////////////// lux and stuff /////////////////////////
-
-void LuxManager::addSensorTcaIdx(String _name, int tca){
-    // will return true if sensor is found and false if it is not
-    names[num_sensors] = _name;
-    tca_addr[num_sensors] = tca;
-    sensors_7700[num_sensors] = Adafruit_VEML7700();
-    sensor_active[num_sensors] = false;// not active until startSensors() is called
-    num_sensors++;
-    num_7700_sensors++;
-}
 /*
 // for adding a sensor which is not based on tca
 void LuxManager::addSensorI2CAddr(String _name, int addr){
@@ -283,7 +286,7 @@ double LuxManager::getAvgLux() {
 void LuxManager::resetAvgLux() {
     lux_total = 0;
     lux_readings = 0;
-    dprintln(P_LUX, "reset lux_total and lux_readings");
+    dprintln(P_LUX_READINGS, "reset lux_total and lux_readings");
 }
 
 void tcaselect(uint8_t i) {
@@ -363,9 +366,11 @@ void LuxManager::readLux() {
                 _t = sensors_7700[i].readLux();
                 if (_t  < 1000000) {
                     lux[i] = _t;
+                    lux_tracker[i].update();
                 }
             } else {
                 lux[i] = _t;
+                lux_tracker[i].update();
             }
         }
     }
@@ -565,6 +570,13 @@ bool LuxManager::update() {
         }
     }
     return false;
+}
+
+void LuxManager::print() {
+    Serial.println("----------- Printing LuxManager Values ---------------");
+    for (int i = 0; i < num_sensors; i++){
+       lux_tracker[i].print();
+    }
 }
 
 #endif // __LUX_H__
