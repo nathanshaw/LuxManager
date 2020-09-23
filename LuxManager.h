@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
 #include "Adafruit_VEML7700.h"
+#include <NeopixelManager.h>
 
 #define TCAADDR 0x70
 //
@@ -68,7 +69,9 @@ class LuxManager {
         bool getExtremeLux() {return extreme_lux;};
 
     private:
-        ///////////////////////////////////
+        ////////////// Linked Neopixels ///////////////
+        NeoGroup*  neos[MAX_LUX_SENSORS];
+        ///////////////////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
         double global_lux = 400;
@@ -420,7 +423,7 @@ double LuxManager::calculateBrightnessScaler() {
             extreme_lux = false;
         }
     }
-    else if (global_lux >= )  {
+    else if (global_lux >= low_thresh)  {
         bs = (global_lux - low_thresh) / (mid_thresh - low_thresh) * (1.0 - bs_min);
         bs += bs_min;
         dprintln(P_BRIGHTNESS_SCALER, " is greater than the low_thresh, setting brightness scaler to a value < 1.0");
@@ -434,12 +437,10 @@ double LuxManager::calculateBrightnessScaler() {
             extreme_lux = false;
         }
     }
-
     dprint(P_BRIGHTNESS_SCALER, "global_lux of ");
     dprint(P_BRIGHTNESS_SCALER, global_lux);
     dprint(P_BRIGHTNESS_SCALER, "has resulted in a brightness_scaler of ");
     dprintln(P_BRIGHTNESS_SCALER, bs);
-
     return bs;
 }
 
