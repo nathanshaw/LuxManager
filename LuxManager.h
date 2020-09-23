@@ -68,6 +68,8 @@ class LuxManager {
 
         bool getExtremeLux() {return extreme_lux;};
 
+        bool getSensorActive(int i){return sensor_active[i];};
+
     private:
         ////////////// Linked Neopixels ///////////////
         NeoGroup*  neos[MAX_LUX_SENSORS];
