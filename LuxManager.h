@@ -112,7 +112,7 @@ class LuxManager {
         int tca_addr[MAX_LUX_SENSORS];
 
         // how long to shutdown depends on the integration time, this is set to 180% of the integration time
-        int shdn_len = 45;
+        unsigned int shdn_len = 45;
 
         uint8_t num_neo_groups = 0;
         String names[MAX_LUX_SENSORS];
@@ -167,6 +167,10 @@ LuxManager::LuxManager(long minrt, long maxrt, uint8_t mapping){
         Serial.println(" WARNING THIS MAPPING DOES NOT EXIST");
 
     }
+}
+
+void LuxManager::calibrate(long len, bool first_time) {
+    Serial.println("WARNING - LUX_MANAGER::calibrate() is not currently implemented");
 }
 
 void LuxManager::setLuxThresholds(float _low, float _mid, float _high, float _extreme) {
