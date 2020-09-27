@@ -91,7 +91,8 @@ class LuxManager {
         ///////////////////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
-        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble(&lux[0], 0.5), ValueTrackerDouble(&lux[1], 0.5)};
+        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble(&lux[0], 1.0), 
+            ValueTrackerDouble(&lux[1], 1.0)};
 
         double global_lux = 400.0;
         ValueTrackerDouble global_lux_tracker = ValueTrackerDouble(&global_lux, 1.0);
@@ -101,6 +102,7 @@ class LuxManager {
         
 
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
+
         SparkFun_Ambient_Light  sensors_6030[MAX_LUX_SENSORS] = {
             SparkFun_Ambient_Light(V6030_ADDR1), SparkFun_Ambient_Light(V6030_ADDR2)};
 
@@ -240,6 +242,7 @@ void LuxManager::add7700Sensor(String _name) {
 
 void LuxManager::add6030Sensors(float gain, int _int) {
     Wire.begin();
+    delay(100);
     Serial.println("Adding VEML6030 Lux Sensors");
     names[num_sensors] = "Front";
     // sensors_6030[num_sensors] = SparkFun_Ambient_Light(V6030_ADDR1);
@@ -264,7 +267,6 @@ void LuxManager::add6030Sensors(float gain, int _int) {
         sensors_6030[num_sensors].setIntegTime(_int);
         Serial.println("configured second VEML6030 sensor");
         sensor_active[num_sensors] = true;
-
         num_sensors++;
         num_6030_sensors++;
     }
@@ -400,20 +402,24 @@ void LuxManager::readLux() {
         if (_t > 1000000) {
             _t = sensors_6030[i].readLight();
             if (_t  < 1000000) {
-                lux[num_6030_sensors + i] = _t;
-                lux_tracker[i].update();
-                dprint(p_lux, "VEML6030 lux ");
+                dprint(p_lux, "lux ");
                 dprint(p_lux, i);
-                dprint(p_lux, "updated to ");
-                dprintln(p_lux, lux[i]);
+                dprint(p_lux, " updated from "); 
+                dprint(p_lux, lux[i], 4);
+                dprint(p_lux, " to ");
+                lux[i] = _t;
+                lux_tracker[i].update();
+                dprintln(p_lux, lux[i], 4);
             }
         } else {
-            lux[num_6030_sensors + i] = _t;
-            lux_tracker[i].update();
-            dprint(p_lux, "VEML6030 lux ");
+            dprint(p_lux, "lux ");
             dprint(p_lux, i);
-            dprint(p_lux, "updated to ");
-            dprintln(p_lux, lux[i]);
+            dprint(p_lux, " updated from "); 
+            dprint(p_lux, lux[i], 4);
+            dprint(p_lux, " to ");
+            lux[i] = _t;
+            lux_tracker[i].update();
+            dprintln(p_lux, lux[i], 4);
         }
     }
 
@@ -556,7 +562,9 @@ double LuxManager::forceLuxReading() {
 
 bool LuxManager::update() {
     bool took_reading = false;
+    // for each sensor
     for (int i = 0; i < num_sensors; i++) {
+        // and for each linked neopixel group
         for (int n = 0; n < num_neo_groups; n++) {
             // if the LEDs are off 
             if (neos[n]->getLedsOn() == false){ 
@@ -566,10 +574,10 @@ bool LuxManager::update() {
                 // and have been off for more than the shdn_len
                 if (neos[n]->getOffLen() >= shdn_len) {
                     // if currently in extreme lux shutdown then poll 20x faster
-                    dprint(p_lux, "Neopixels have been off for long enough to take a normal lux reading: ");
-                    dprint(p_lux, last_reading);
-                    dprint(p_lux, " / ");
-                    dprintln(p_lux, min_reading_time);
+                    // dprint(p_lux, "Neopixels have been off for long enough to take a normal lux reading: ");
+                    // dprint(p_lux, last_reading);
+                    // dprint(p_lux, " / ");
+                    // dprintln(p_lux, min_reading_time);
                     if (extreme_lux && last_reading > min_reading_time * 0.05) {
                         dprintln(p_lux,"------------------------------------------");
                         dprint(p_lux, "QUICK UPDATE due to extreme lux reading");
@@ -593,20 +601,21 @@ bool LuxManager::update() {
 
                     }
                 }
-                else if (last_reading > max_reading_time) { // the LEDs will be off when this logic comes up
-                    // shdn len has to be longer to ensure the lux sensors get a good reading
-                    dprintln(p_lux,"------------------------------------------");
-                    dprint(p_lux, "last lux reading is greater than last reading time of ");
-                    dprint(p_lux, max_reading_time);
-                    dprintln(p_lux, " and neo LEDs are on");
-                    if (!neos[n]->isInShutdown()) {
-                        dprint(p_lux, n);
-                        dprintln(p_lux, "neos not in shutdown, putting them in shutdown now ");
-                        dprintln(p_lux, "for a forced lux reading\n-----------------------------------------------");
-                        neos[n]->shutdown(shdn_len);
-                    }
-                    dprintln(p_lux);
+            }
+            // if the LEDs are on and it has been longer than the max reading time
+            else if (last_reading > max_reading_time) { // the LEDs will be off when this logic comes up
+                // shdn len has to be longer to ensure the lux sensors get a good reading
+                dprintln(p_lux,"------------------------------------------");
+                dprint(p_lux, "last lux reading is greater than last reading time of ");
+                dprint(p_lux, max_reading_time);
+                dprintln(p_lux, " and neo LEDs are on");
+                if (!neos[n]->isInShutdown()) {
+                    dprint(p_lux, n);
+                    dprintln(p_lux, "neos not in shutdown, putting them in shutdown now ");
+                    dprintln(p_lux, "for a forced lux reading\n-----------------------------------------------");
+                    neos[n]->shutdown(shdn_len);
                 }
+                dprintln(p_lux);
             }
         }
     }
