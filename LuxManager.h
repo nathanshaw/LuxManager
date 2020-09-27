@@ -91,14 +91,14 @@ class LuxManager {
         ///////////////////////////////////////////////
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
-        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble(&lux[0], 1.0), 
-            ValueTrackerDouble(&lux[1], 1.0)};
+        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble("lux1", &lux[0], 1.0), 
+            ValueTrackerDouble("lux1", &lux[1], 1.0)};
 
         double global_lux = 400.0;
-        ValueTrackerDouble global_lux_tracker = ValueTrackerDouble(&global_lux, 1.0);
+        ValueTrackerDouble global_lux_tracker = ValueTrackerDouble("global_lux", &global_lux, 1.0);
 
         double brightness_scaler = 0.0;
-        ValueTrackerDouble bs_tracker = ValueTrackerDouble(&brightness_scaler, 0.5);
+        ValueTrackerDouble bs_tracker = ValueTrackerDouble("LuxM_bs", &brightness_scaler, 0.5);
         
 
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
@@ -172,11 +172,21 @@ void LuxManager::calibrate(long len, bool first_time) {
     for (int i = 0; i < num_neo_groups; i++){
         neos[i]->colorWipe(0,0,0, 0.0);
     }
+    printMinorDivide();
+    readLux();
+    printMinorDivide();
+    Serial.println("Finished initial reading, now resetting min and max to the current reading");
+    resetMinMax();
+    printMinorDivide();
+    Serial.println("Now reading the lux sensors 10x");
+    printMinorDivide();
     for (int i = 0; i < 10; i++) {
         readLux();
         delay(len/10);
     }
     print();
+    printMinorDivide();
+    printMinorDivide();
     Serial.println("LUX_MANAGER calibration is now finished");
     printDivide();
 }
@@ -560,63 +570,92 @@ double LuxManager::forceLuxReading() {
     return global_lux;
 }
 
+
 bool LuxManager::update() {
-    bool took_reading = false;
+    uint8_t took_reading = 0;
     // for each sensor
     for (int i = 0; i < num_sensors; i++) {
         // and for each linked neopixel group
+        // if the LEDs are off 
+        uint8_t ctr = 0;
         for (int n = 0; n < num_neo_groups; n++) {
-            // if the LEDs are off 
-            if (neos[n]->getLedsOn() == false){ 
-                // dprint(p_lux, "LEDs have been off for ");
-                // dprint(p_lux, neos[n]->getOffLen());
-                // dprintln(p_lux, "ms");
-                // and have been off for more than the shdn_len
-                if (neos[n]->getOffLen() >= shdn_len) {
-                    // if currently in extreme lux shutdown then poll 20x faster
-                    // dprint(p_lux, "Neopixels have been off for long enough to take a normal lux reading: ");
-                    // dprint(p_lux, last_reading);
-                    // dprint(p_lux, " / ");
-                    // dprintln(p_lux, min_reading_time);
-                    if (extreme_lux && last_reading > min_reading_time * 0.05) {
-                        dprintln(p_lux,"------------------------------------------");
-                        dprint(p_lux, "QUICK UPDATE due to extreme lux reading");
-                        readLux();
-                        took_reading = true;
-                        if (neos[n]->getShdnLen() > shdn_len) {
-                            neos[n]->powerOn();
-                            dprint(p_lux, "Sending Power On Message");
-                        }
-                    }
-                    else if (last_reading > min_reading_time) {
-                        dprintln(p_lux,"------------------------------------------");
-                        dprintln(p_lux, "readLux() is being called by luxManager update()");
-                        readLux();
-                        took_reading = true;
-                        if (neos[n]->getShdnLen() > shdn_len) {
-                            neos[n]->powerOn();
-                            dprint(p_lux, "Sending Power On Message");
-                        }
-                    } else {
+            if (neos[n]->getLedsOn() == false){
+                ctr++;
+            }
+        }
+        // if all of the linked neogroups are off
+        if (ctr == num_neo_groups){ 
+            // dprint(p_lux, "LEDs have been off for ");
+            // dprint(p_lux, neos[n]->getOffLen());
+            // dprintln(p_lux, "ms");
+            // and have been off for more than the shdn_len
 
-                    }
+            // check to see if they all have shutdown len which is long enough
+            // if they have not then nothing happens 
+            ctr = 0;
+            for (int n = 0; n < num_neo_groups; n++) {
+                if (neos[n]->getOffLen() >= shdn_len){
+                    ctr++;
                 }
             }
-            // if the LEDs are on and it has been longer than the max reading time
-            else if (last_reading > max_reading_time) { // the LEDs will be off when this logic comes up
-                // shdn len has to be longer to ensure the lux sensors get a good reading
-                dprintln(p_lux,"------------------------------------------");
-                dprint(p_lux, "last lux reading is greater than last reading time of ");
-                dprint(p_lux, max_reading_time);
-                dprintln(p_lux, " and neo LEDs are on");
-                if (!neos[n]->isInShutdown()) {
+            if (ctr == num_neo_groups) {
+                // if currently in extreme lux shutdown then poll 20x faster
+                // dprint(p_lux, "Neopixels have been off for long enough to take a normal lux reading: ");
+                // dprint(p_lux, last_reading);
+                // dprint(p_lux, " / ");
+                // dprintln(p_lux, min_reading_time);
+                if (extreme_lux && last_reading > min_reading_time * 0.05) {
+                    dprintln(p_lux,"------------------------------------------");
+                    dprint(p_lux, "QUICK UPDATE due to extreme lux reading");
+                    readLux();
+                    took_reading++;
+                    ctr = 0;
+                    for (int n = 0; n < num_neo_groups; n++) {
+                        if (neos[n]->isInShutdown() == false){
+                            ctr++;
+                        }
+                    }
+                }
+                else if (last_reading > min_reading_time) {
+                    dprintln(p_lux,"------------------------------------------");
+                    dprintln(p_lux, "readLux() is being called by luxManager update()");
+                    readLux();
+                    took_reading++;
+
+                }
+            }
+        }
+        // if the LEDs are on and it has been longer than the max reading time
+        else if (last_reading > max_reading_time) { // the LEDs will be off when this logic comes up
+            // shdn len has to be longer to ensure the lux sensors get a good reading
+            dprintln(p_lux,"------------------------------------------");
+            dprint(p_lux, "last lux reading is greater than last reading time of ");
+            dprint(p_lux, max_reading_time);
+            dprint(p_lux, " and ");
+            ctr = 0;
+            for (int n = 0; n < num_neo_groups; n++) {
+                if (neos[n]->isInShutdown() == false){
+                    ctr++;
+                }
+            }
+            dprint(p_lux, ctr);
+            dprint(p_lux, " LEDs are not in shutdown");
+            if (ctr == num_neo_groups) {
+                dprintln(p_lux, "neos not in shutdown, putting them in shutdown now ");
+                for (int n = 0; n < num_neo_groups; n++) {
                     dprint(p_lux, n);
-                    dprintln(p_lux, "neos not in shutdown, putting them in shutdown now ");
-                    dprintln(p_lux, "for a forced lux reading\n-----------------------------------------------");
+                    dprintln(p_lux, " for a forced lux reading\n-----------------------------------------------");
                     neos[n]->shutdown(shdn_len);
                 }
-                dprintln(p_lux);
             }
+            dprintln(p_lux);
+        }
+    }
+    if (took_reading > 0) {
+        for (int n = 0; n < num_neo_groups; n++) {
+            neos[n]->powerOn();
+            dprint(p_lux, "Sending Power On Message to neogroup ");
+            dprintln(p_lux, neos[n]->getName());
         }
     }
     return took_reading;
