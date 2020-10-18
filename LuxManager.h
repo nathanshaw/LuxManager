@@ -50,6 +50,7 @@ class LuxManager {
         double getLux() {
             return global_lux;
         };
+        double getGlobalLux() {return global_lux;};
         void startTCA7700Sensors(byte gain, byte integration);
         void start7700Sensor(byte gain, byte integration);
 
@@ -79,6 +80,7 @@ class LuxManager {
         void setPrintBrightnessScaler(bool s) {p_brightness_scaler = s;};
         void setPrintLuxReadings(bool s) {p_lux_readings = s;};
         void setPrintGeneralDebug(bool s) {p_lux = s;};
+        bool getActive(){return sensors_active;};
 
     private:
         ////////////// Linked Neopixels ///////////////
@@ -89,6 +91,7 @@ class LuxManager {
         bool p_lux = false;
 
         ///////////////////////////////////////////////
+        bool sensors_active = false;
         bool sensor_active[MAX_LUX_SENSORS];
         double lux[MAX_LUX_SENSORS];
         ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble("lux1", &lux[0], 1.0), 
@@ -112,10 +115,10 @@ class LuxManager {
         uint8_t num_7700_sensors = 0;
 
         //////////////// Lux Thresholds for Mapping ////////////////
-        float low_thresh;
+        float low_extreme_thresh;
         float mid_thresh;
         float high_thresh;
-        float extreme_thresh;
+        float high_extreme_thresh;
 
         int tca_addr[MAX_LUX_SENSORS];
 
@@ -170,8 +173,12 @@ void LuxManager::calibrate(long len, bool first_time) {
     printDivide();
     Serial.println("Now starting the LuxManager.calibrate() function");
     for (int i = 0; i < num_neo_groups; i++){
+        Serial.print("Turning NeoGroup ");
+        Serial.print(neos[i]->getName());
         neos[i]->colorWipe(0,0,0, 0.0);
+        Serial.println(" off");
     }
+    Serial.println("Turned NeoPixels off");
     printMinorDivide();
     readLux();
     printMinorDivide();
@@ -181,6 +188,8 @@ void LuxManager::calibrate(long len, bool first_time) {
     Serial.println("Now reading the lux sensors 10x");
     printMinorDivide();
     for (int i = 0; i < 10; i++) {
+        Serial.print("Reading number: ");
+        Serial.println(i);
         readLux();
         delay(len/10);
     }
@@ -192,10 +201,10 @@ void LuxManager::calibrate(long len, bool first_time) {
 }
 
 void LuxManager::setLuxThresholds(float _low, float _mid, float _high, float _extreme) {
-    low_thresh = _low;
+    low_extreme_thresh = _low;
     mid_thresh = _mid;
     high_thresh = _high;
-    extreme_thresh = _extreme;
+    high_extreme_thresh = _extreme;
 }
 
 void LuxManager::setBrightnessScalerMinMax(double min, double max) {
@@ -262,6 +271,7 @@ void LuxManager::add6030Sensors(float gain, int _int) {
         sensors_6030[num_sensors].setIntegTime(_int);
         Serial.println("configured first VEML6030 sensor");
         sensor_active[num_sensors] = true;
+        sensors_active = true;
         num_sensors++;
         num_6030_sensors++;
     }
@@ -277,6 +287,7 @@ void LuxManager::add6030Sensors(float gain, int _int) {
         sensors_6030[num_sensors].setIntegTime(_int);
         Serial.println("configured second VEML6030 sensor");
         sensor_active[num_sensors] = true;
+        sensors_active = true;
         num_sensors++;
         num_6030_sensors++;
     }
@@ -337,6 +348,7 @@ void LuxManager::start7700Sensor(byte gain, byte integration) {
     else {
         Serial.print("VEML "); Serial.print(names[0]); Serial.println(" found");
         sensor_active[0] = true;
+        sensors_active = true;
         sensors_7700[0].setGain(gain); // talk about gain and integration time in the thesis
         sensors_7700[0].setIntegrationTime(integration);// 800ms was default
     }
@@ -366,6 +378,7 @@ void LuxManager::startTCA7700Sensors(byte gain, byte integration) {
         else {
             Serial.print("VEML "); Serial.print(names[i]); Serial.println(" found");
             sensor_active[i] = true;
+            sensors_active = true;
             sensors_7700[i].setGain(gain); // talk about gain and integration time in the thesis
             sensors_7700[i].setIntegrationTime(integration);// 800ms was default
         }
@@ -376,16 +389,37 @@ void LuxManager::readLux() {
     /* This function handles reading each individual lux sensor and then
      * determining what the global lux is. 
      */
+    bool onwards = false;
+    for (int i = 0; i < num_sensors; i++) {
+        if (sensor_active[i] == true){
+            onwards = true;
+        }
+    }
+    if (onwards == false) {
+        dprintln(p_lux, "exiting from readLux(), no active sensors");
+        return;
+    }
     for (int i = 0; i < num_7700_sensors; i++){
         // read each sensor
-        // ToDo - need to not make assumption that the tca is being used
-        if (tca_addr[i] > -1) {
+        if (tca_present == true && tca_addr[i] > -1) {
+            Serial.println("Entering into tcaselect loop");
             tcaselect(tca_addr[i]);
+            Serial.println("Exiting tcaselect loop");
         }
-        double _t = sensors_7700[i].readLux();
-        if (_t > 1000000) {
-            _t = sensors_7700[i].readLux();
-            if (_t  < 1000000) {
+            double _t = sensors_7700[i].readLux();
+            if (_t > 1000000) {
+                _t = sensors_7700[i].readLux();
+                if (_t  < 1000000) {
+                    dprint(p_lux, "lux ");
+                    dprint(p_lux, i);
+                    dprint(p_lux, " updated from "); 
+                    dprint(p_lux, lux[i]);
+                    dprint(p_lux, " to ");
+                    lux[i] = _t;
+                    lux_tracker[i].update();
+                    dprintln(p_lux, lux[i]);
+                }
+            } else {
                 dprint(p_lux, "lux ");
                 dprint(p_lux, i);
                 dprint(p_lux, " updated from "); 
@@ -395,23 +429,23 @@ void LuxManager::readLux() {
                 lux_tracker[i].update();
                 dprintln(p_lux, lux[i]);
             }
-        } else {
-            dprint(p_lux, "lux ");
-            dprint(p_lux, i);
-            dprint(p_lux, " updated from "); 
-            dprint(p_lux, lux[i]);
-            dprint(p_lux, " to ");
-            lux[i] = _t;
-            lux_tracker[i].update();
-            dprintln(p_lux, lux[i]);
         }
-    }
 
-    for (int i = 0; i < num_6030_sensors; i++){
-        double _t = sensors_6030[i].readLight();
-        if (_t > 1000000) {
-            _t = sensors_6030[i].readLight();
-            if (_t  < 1000000) {
+        for (int i = 0; i < num_6030_sensors; i++){
+            double _t = sensors_6030[i].readLight();
+            if (_t > 1000000) {
+                _t = sensors_6030[i].readLight();
+                if (_t  < 1000000) {
+                    dprint(p_lux, "lux ");
+                    dprint(p_lux, i);
+                    dprint(p_lux, " updated from "); 
+                    dprint(p_lux, lux[i], 4);
+                    dprint(p_lux, " to ");
+                    lux[i] = _t;
+                    lux_tracker[i].update();
+                    dprintln(p_lux, lux[i], 4);
+                }
+            } else {
                 dprint(p_lux, "lux ");
                 dprint(p_lux, i);
                 dprint(p_lux, " updated from "); 
@@ -421,80 +455,70 @@ void LuxManager::readLux() {
                 lux_tracker[i].update();
                 dprintln(p_lux, lux[i], 4);
             }
+        }
+
+        for (int i = 0; i < num_sensors; i++) {
+            dprint(p_lux_readings, "Lux for sensor #");
+            dprint(p_lux_readings, i);
+            dprint(p_lux_readings, ": ");
+            dprintln(p_lux_readings, lux[i]);
+        }
+
+        if (mode == TAKE_HIGHEST_LUX) {
+            double highest = 0.0;
+            for (int i = 0; i < num_sensors; i++) {
+                if (highest < lux[i]) {
+                    highest = lux[i];
+                    dprint(p_lux_readings, "highest changed to: ");
+                    dprintln(p_lux_readings, highest);
+                }
+            }
+            global_lux = highest;
+            global_lux_tracker.update();
+            dprint(p_lux_readings, "Taking highest lux: ");
+            dprintln(p_lux_readings, global_lux);
+
+        } else if (mode == TAKE_AVERAGE_LUX) {
+            double average = 0.0;
+            for (int i = 0; i < num_sensors; i++) {
+                average = average + lux[i];
+            }
+            average = average / num_sensors;
+            global_lux = average;
+            global_lux_tracker.update();
+            dprint(p_lux_readings, "Taking average lux: ");
+            dprintln(p_lux_readings, global_lux);
         } else {
-            dprint(p_lux, "lux ");
-            dprint(p_lux, i);
-            dprint(p_lux, " updated from "); 
-            dprint(p_lux, lux[i], 4);
-            dprint(p_lux, " to ");
-            lux[i] = _t;
-            lux_tracker[i].update();
-            dprintln(p_lux, lux[i], 4);
+            Serial.println("ERROR, there is not a valid mode selected for the LuxManager");
         }
-    }
+        // now trigger an update to the brightness scaler
+        brightness_scaler = calculateBrightnessScaler();
+        bs_tracker.update();
 
-    for (int i = 0; i < num_sensors; i++) {
-        dprint(p_lux_readings, "Lux for sensor #");
-        dprint(p_lux_readings, i);
-        dprint(p_lux_readings, ": ");
-        dprintln(p_lux_readings, lux[i]);
-    }
+        // update all linked neogroups with the new brighness scaler
+        for (int i = 0; i < num_neo_groups; i++){
+            if (lux_mapping_schema == LUX_ADJUSTS_BS) {
+                if (neos[i]->getLuxBS() != brightness_scaler) {
+                    dprint(p_brightness_scaler, "changing the neopixel brightness scaler from/to :\t");
+                    dprint(p_brightness_scaler, neos[i]->getLuxBS());
+                    dprint(p_brightness_scaler, "\t");
+                    dprintln(p_brightness_scaler, brightness_scaler);
 
-    if (mode == TAKE_HIGHEST_LUX) {
-        double highest = 0.0;
-        for (int i = 0; i < num_sensors; i++) {
-            if (highest < lux[i]) {
-                highest = lux[i];
-                dprint(p_lux_readings, "highest changed to: ");
-                dprintln(p_lux_readings, highest);
+                    neos[i]->setLuxBS(brightness_scaler);
+                }
+                else {
+                    dprintln(p_brightness_scaler, "not updating linked NeoGroup lux_bs as it has not changed based off the new readings");
+
+                }
+            } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
+                neos[i]->setMinMaxBrightnessFromBS(brightness_scaler);
             }
         }
-        global_lux = highest;
-        global_lux_tracker.update();
-        dprint(p_lux_readings, "Taking highest lux: ");
-        dprintln(p_lux_readings, global_lux);
-
-    } else if (mode == TAKE_AVERAGE_LUX) {
-        double average = 0.0;
-        for (int i = 0; i < num_sensors; i++) {
-            average = average + lux[i];
-        }
-        average = average / num_sensors;
-        global_lux = average;
-        global_lux_tracker.update();
-        dprint(p_lux_readings, "Taking average lux: ");
-        dprintln(p_lux_readings, global_lux);
-    } else {
-        Serial.println("ERROR, there is not a valid mode selected for the LuxManager");
-    }
-    // now trigger an update to the brightness scaler
-    brightness_scaler = calculateBrightnessScaler();
-    bs_tracker.update();
-
-    // update all linked neogroups with the new brighness scaler
-    for (int i = 0; i < num_neo_groups; i++){
-        if (lux_mapping_schema == LUX_ADJUSTS_BS) {
-            if (neos[i]->getLuxBS() != brightness_scaler) {
-                dprint(p_brightness_scaler, "changing the neopixel brightness scaler from/to :\t");
-                dprint(p_brightness_scaler, neos[i]->getLuxBS());
-                dprint(p_brightness_scaler, "\t");
-                dprintln(p_brightness_scaler, brightness_scaler);
-
-                neos[i]->setLuxBS(brightness_scaler);
-            }
-            else {
-                dprintln(p_brightness_scaler, "not updating linked NeoGroup lux_bs as it has not changed based off the new readings");
-
-            }
-        } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
-            neos[i]->setMinMaxBrightnessFromBS(brightness_scaler);
-        }
-    }
-    if (p_brightness_scaler == 0) {
-        dprint(p_lux_readings, "\tbs: "); 
-        dprintln(p_lux_readings, brightness_scaler);
-    };
-    last_reading = 0;
+        if (p_brightness_scaler == 0) {
+            dprint(p_lux_readings, "\tbs: "); 
+            dprintln(p_lux_readings, brightness_scaler);
+        };
+        last_reading = 0;
 }
 
 double LuxManager::calculateBrightnessScaler() {
@@ -504,7 +528,7 @@ double LuxManager::calculateBrightnessScaler() {
     // is the unconstrained lux above the extreme_lux_thresh?
     dprint(p_brightness_scaler, names[0]);
 
-    if (global_lux >= extreme_thresh) {
+    if (global_lux >= high_extreme_thresh) {
         bs = 0.0;
         dprintln(p_brightness_scaler, " Neopixel brightness scaler set to 0.0 due to extreme lux");
         if (extreme_lux == false) {
@@ -526,16 +550,16 @@ double LuxManager::calculateBrightnessScaler() {
             extreme_lux = false;
         }
     }
-    else if (global_lux >= low_thresh)  {
-        bs = (global_lux - low_thresh) / (mid_thresh - low_thresh) * (1.0 - bs_min);
+    else if (global_lux >= low_extreme_thresh)  {
+        bs = (global_lux - low_extreme_thresh) / (mid_thresh - low_extreme_thresh) * (1.0 - bs_min);
         bs += bs_min;
-        dprintln(p_brightness_scaler, " is greater than the low_thresh, setting brightness scaler to a value < 1.0");
+        dprintln(p_brightness_scaler, " is greater than the low_extreme_thresh, setting brightness scaler to a value < 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     } else {
         bs = bs_min;
-        dprintln(p_brightness_scaler, " is lower than the low_thresh, setting brightness scaler to bs_min");
+        dprintln(p_brightness_scaler, " is lower than the low_extreme_thresh, setting brightness scaler to bs_min");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
