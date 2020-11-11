@@ -182,10 +182,10 @@ void LuxManager::calibrate(long len, bool first_time) {
     printMinorDivide();
     readLux();
     printMinorDivide();
-    Serial.println("Finished initial reading, now resetting min and max to the current reading");
+    Serial.println(F("Finished initial reading, now resetting min and max to the current reading"));
     resetMinMax();
     printMinorDivide();
-    Serial.println("Now reading the lux sensors 10x");
+    Serial.println(F("Now reading the lux sensors 10x"));
     printMinorDivide();
     for (int i = 0; i < 10; i++) {
         Serial.print("Reading number: ");
@@ -210,7 +210,7 @@ void LuxManager::setLuxThresholds(float _low, float _mid, float _high, float _ex
 void LuxManager::setBrightnessScalerMinMax(double min, double max) {
     bs_min = min;
     bs_max = max;
-    Serial.print("LuxManager BS min/max updatedd to: ");
+    Serial.print("LuxManager BS min/max updated to: ");
     Serial.print(bs_min);
     Serial.print(" / ");
     Serial.println(bs_max);
@@ -669,7 +669,8 @@ bool LuxManager::update() {
                 for (int n = 0; n < num_neo_groups; n++) {
                     dprint(p_lux, n);
                     dprintln(p_lux, " for a forced lux reading\n-----------------------------------------------");
-                    neos[n]->shutdown(shdn_len);
+                    neos[n]->shutdown(shdn_len*4);// shutdown the neogroup for more than enough time to conduct a lux reading
+                    /// once a lux reading is collected, the shutdown will be reset
                 }
             }
             dprintln(p_lux);
