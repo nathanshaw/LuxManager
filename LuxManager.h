@@ -2,8 +2,10 @@
 #define __LUX_H__
 
 #include <Wire.h>
-#include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
-#include "Adafruit_VEML7700.h"
+// #include "SparkFun_VEML6030_Ambient_Light_Sensor.h"
+#include <SparkFun_VEML6030_Ambient_Light_Sensor.h>
+// #include "Adafruit_VEML7700.h"
+#include <Adafruit_VEML7700.h>
 #include <NeopixelManager.h>
 #include <ValueTrackerDouble.h>
 
@@ -33,6 +35,11 @@
 #ifndef LUX_ADJUSTS_MIN_MAX
 #define LUX_ADJUSTS_MIN_MAX 1
 #endif
+
+#ifndef LUX_ADJUSTS_BS_AND_MIN_MAX
+#define LUX_ADJUSTS_BS_AND_MIN_MAX 2
+#endif
+
 
 class LuxManager {
     public:
@@ -245,7 +252,8 @@ void LuxManager::addSensorTcaIdx(String _name, int tca){
     // will return true if sensor is found and false if it is not
     names[num_sensors] = _name;
     tca_addr[num_sensors] = tca;
-    sensors_7700[num_sensors] = Adafruit_VEML7700();
+    // No need to initalise as that is already done when instanciating the class?
+    // sensors_7700[num_sensors] = Adafruit_VEML7700::Adafruit_VEML7700();
     sensor_active[num_sensors] = false;// not active until startSensors() is called
     num_sensors++;
     num_7700_sensors++;
@@ -253,7 +261,8 @@ void LuxManager::addSensorTcaIdx(String _name, int tca){
 
 void LuxManager::add7700Sensor(String _name) {
     names[num_sensors] = _name;
-    sensors_7700[num_sensors] = Adafruit_VEML7700();
+    // No need to initalise as that is already done when instanciating the class?
+    // sensors_7700[num_sensors] = Adafruit_VEML7700::Adafruit_VEML7700();
     sensor_active[num_sensors] = false;// not active until startSensors() is called
     num_sensors++;
     num_7700_sensors++;
@@ -497,7 +506,7 @@ void LuxManager::readLux() {
 
         // update all linked neogroups with the new brighness scaler
         for (int i = 0; i < num_neo_groups; i++){
-            if (lux_mapping_schema == LUX_ADJUSTS_BS) {
+            if (lux_mapping_schema == LUX_ADJUSTS_BS || lux_mapping_schema == LUX_ADJUSTS_BS_AND_MIN_MAX) {
                 if (neos[i]->getLuxBS() != brightness_scaler) {
                     dprint(p_brightness_scaler, "changing the neopixel brightness scaler from/to :\t");
                     dprint(p_brightness_scaler, neos[i]->getLuxBS());
@@ -510,9 +519,10 @@ void LuxManager::readLux() {
                     dprintln(p_brightness_scaler, "not updating linked NeoGroup lux_bs as it has not changed based off the new readings");
 
                 }
-            } else if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX) {
-                neos[i]->setMinMaxBrightnessFromBS(brightness_scaler);
-            }
+            } 
+            if (lux_mapping_schema == LUX_ADJUSTS_MIN_MAX || lux_mapping_schema == LUX_ADJUSTS_BS_AND_MIN_MAX) {
+                    dprintln(p_brightness_scaler, "WARNING LUX_ADJUSTS_MIN_MAX not implemented yet");
+                }
         }
         if (p_brightness_scaler == 0) {
             dprint(p_lux_readings, "\tbs: "); 

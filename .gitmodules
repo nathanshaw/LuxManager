@@ -1,0 +1,6 @@
+[submodule "SparkFun_Ambient_Light_Sensor_Arduino_Library"]
+	path = SparkFun_Ambient_Light_Sensor_Arduino_Library
+	url = https://github.com/sparkfun/SparkFun_Ambient_Light_Sensor_Arduino_Library
+[submodule "Adafruit_VEML7700"]
+	path = Adafruit_VEML7700
+	url = https://github.com/adafruit/Adafruit_VEML7700
