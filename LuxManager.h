@@ -82,6 +82,16 @@ class LuxManager {
         void setPrintGeneralDebug(bool s) {p_lux = s;};
         bool getActive(){return sensors_active;};
 
+        double lux[MAX_LUX_SENSORS];
+        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble("lux1", &lux[0], 1.0), 
+            ValueTrackerDouble("lux1", &lux[1], 1.0)};
+
+        double global_lux = 400.0;
+        ValueTrackerDouble global_lux_tracker = ValueTrackerDouble("global_lux", &global_lux, 1.0);
+
+        double brightness_scaler = 0.0;
+        ValueTrackerDouble bs_tracker = ValueTrackerDouble("LuxM_bs", &brightness_scaler, 0.5);
+
     private:
         ////////////// Linked Neopixels ///////////////
         NeoGroup*  neos[6];
@@ -93,17 +103,7 @@ class LuxManager {
         ///////////////////////////////////////////////
         bool sensors_active = false;
         bool sensor_active[MAX_LUX_SENSORS];
-        double lux[MAX_LUX_SENSORS];
-        ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble("lux1", &lux[0], 1.0), 
-            ValueTrackerDouble("lux1", &lux[1], 1.0)};
-
-        double global_lux = 400.0;
-        ValueTrackerDouble global_lux_tracker = ValueTrackerDouble("global_lux", &global_lux, 1.0);
-
-        double brightness_scaler = 0.0;
-        ValueTrackerDouble bs_tracker = ValueTrackerDouble("LuxM_bs", &brightness_scaler, 0.5);
         
-
         Adafruit_VEML7700       sensors_7700[MAX_LUX_SENSORS];
 
         SparkFun_Ambient_Light  sensors_6030[MAX_LUX_SENSORS] = {
