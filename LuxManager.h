@@ -79,6 +79,7 @@ class LuxManager {
         void resetBrightnessScalerAvg();
 
         bool getExtremeLux() {return extreme_lux;};
+        double getScaledLux() {return global_lux_tracker.getScaled();};
 
         bool getSensorActive(int i){return sensor_active[i];};
 
