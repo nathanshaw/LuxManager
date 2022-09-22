@@ -52,7 +52,7 @@ class LuxManager {
         void add7700Sensor(String _name);
         void addSensorTcaIdx(String _name, int tca);
 
-        void setLuxThresholds(float _low, float _mid, float _high, float _extreme);
+        void setLuxThresholds(float _night, float _low, float _mid, float _high, float _extreme);
 
         double getLux() {
             return global_lux;
@@ -92,7 +92,7 @@ class LuxManager {
 
         double lux[MAX_LUX_SENSORS];
         ValueTrackerDouble lux_tracker[MAX_LUX_SENSORS] = {ValueTrackerDouble("lux1", &lux[0], 1.0), 
-            ValueTrackerDouble("lux1", &lux[1], 1.0)};
+            ValueTrackerDouble("lux2", &lux[1], 1.0)};
 
         double global_lux = 400.0;
         ValueTrackerDouble global_lux_tracker = ValueTrackerDouble("global_lux", &global_lux, 1.0);
@@ -123,10 +123,11 @@ class LuxManager {
         uint8_t num_7700_sensors = 0;
 
         //////////////// Lux Thresholds for Mapping ////////////////
-        float low_extreme_thresh;
+        float night_thresh;
+        float low_thresh;
         float mid_thresh;
         float high_thresh;
-        float high_extreme_thresh;
+        float extreme_thresh;
 
         int tca_addr[MAX_LUX_SENSORS];
 
@@ -208,11 +209,12 @@ void LuxManager::calibrate(long len, bool first_time) {
     printDivide();
 }
 
-void LuxManager::setLuxThresholds(float _low, float _mid, float _high, float _extreme) {
-    low_extreme_thresh = _low;
+void LuxManager::setLuxThresholds(float _night, float _low, float _mid, float _high, float _extreme) {
+    night_thresh = _night;
+    low_thresh = _low;
     mid_thresh = _mid;
     high_thresh = _high;
-    high_extreme_thresh = _extreme;
+    extreme_thresh = _extreme;
 }
 
 void LuxManager::setBrightnessScalerMinMax(double min, double max) {
@@ -537,48 +539,58 @@ double LuxManager::calculateBrightnessScaler() {
     double bs;
     // conduct brightness scaling depending on if the reading is above or below the mid thresh
     // is the unconstrained lux above the extreme_lux_thresh?
+    dprintDivide(p_brightness_scaler, "------------------------------------------");
     dprint(p_brightness_scaler, names[0]);
 
-    if (global_lux >= high_extreme_thresh) {
+    if (global_lux >= extreme_thresh) {
         bs = 0.0;
-        dprintln(p_brightness_scaler, " Neopixel brightness scaler set to 0.0 due to extreme lux");
+        dprintln(p_brightness_scaler, " is above extreme thresh, scaler set to 0.0 due to extreme lux");
         if (extreme_lux == false) {
             extreme_lux = true;
         }
     } 
     else if (global_lux >= high_thresh) {
         bs = bs_max;
-        dprintln(p_brightness_scaler, " is greater than the MAX_LUX_THRESHOLD, setting brightness scaler to bs_max");
+        dprintln(p_brightness_scaler, " is between the high and extreme tresh, setting brightness scaler to bs_max");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
     else if (global_lux >= mid_thresh) {
-        bs = 1.0;
-        // bs = 1.0 + (bbs_max- 1.0) * ((lux - mid_thresh) / (high_thresh - mid_thresh));
-        dprintln(p_brightness_scaler, " is greater than the mid_thresh, setting brightness scaler to 1.0");
+        // bs is scaled to between 1.0 and bs_max
+        bs = mapf(global_lux, low_thresh, high_thresh, 1.0, bs_max);
+        dprintln(p_brightness_scaler, " is between the mid and high thresh, setting brightness scaler to between 1.0 and bs_max");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
     }
-    else if (global_lux >= low_extreme_thresh)  {
-        bs = (global_lux - low_extreme_thresh) / (mid_thresh - low_extreme_thresh) * (1.0 - bs_min);
-        bs += bs_min;
-        dprintln(p_brightness_scaler, " is greater than the low_extreme_thresh, setting brightness scaler to a value < 1.0");
+    else if (global_lux >= low_thresh)  {
+        // bs is scaled to between bs_min and 1.0
+        bs = mapf(global_lux, low_thresh, mid_thresh, bs_min, 1.0);
+        dprintln(p_brightness_scaler, " is between low and mid thresh, setting brightness scaler to between bs_min and 1.0");
         if (extreme_lux == true) {
             extreme_lux = false;
         }
-    } else {
+    } 
+    else if (global_lux >= night_thresh) {
+        dprintln(p_brightness_scaler, " is between night and low thresh, setting brightness scaler to bs_min");
         bs = bs_min;
-        dprintln(p_brightness_scaler, " is lower than the low_extreme_thresh, setting brightness scaler to bs_min");
         if (extreme_lux == true) {
             extreme_lux = false;
+        }
+    }
+    else {
+        bs = 0.0;
+        dprintln(p_brightness_scaler, " is lower than the night_thresh, setting brightness scaler to 0.0");
+        if (extreme_lux == false) {
+            extreme_lux = true;
         }
     }
     dprint(p_brightness_scaler, "global_lux of ");
     dprint(p_brightness_scaler, global_lux);
-    dprint(p_brightness_scaler, "has resulted in a brightness_scaler of ");
+    dprint(p_brightness_scaler, " has resulted in a brightness_scaler of ");
     dprintln(p_brightness_scaler, bs);
+    dprintDivide(p_brightness_scaler,"----------------------------------------");
     return bs;
 }
 
